@@ -143,45 +143,37 @@ uninstall_server() {
     case "$choice" in 
         y|Y )
             # 1. إيقاف الخدمات
+            echo -e "${BLUE}[1/6] ${YELLOW}Stop server...${NC}"
             stop_services
 
             # 2. إزالة الحزم
-            echo -e "${BLUE}[2/6] ${YELLOW}جارٍ إزالة الحزم المثبتة...${NC}"
+            echo -e "${BLUE}[2/6] ${YELLOW}Removing installed packages...${NC}"
             pkg remove -y php-apache mariadb composer openssl-tool wget >/dev/null 2>&1
             pkg autoremove -y >/dev/null 2>&1
-            echo -e "${GREEN}تم إزالة الحزم بنجاح${NC}"
+            echo -e "${GREEN} Packages removed successfully  ${NC}"
 
             # 3. حذف ملفات التكوين
-            echo -e "${BLUE}[3/6] ${YELLOW}جارٍ حذف ملفات التكوين...${NC}"
-            rm -rf $PREFIX/etc/apache2 >/dev/null 2>&1
-            rm -rf $PREFIX/var/log/apache2 >/dev/null 2>&1
-            rm -rf $PREFIX/etc/php >/dev/null 2>&1
+            echo -e "${BLUE}[3/6] ${YELLOW}Deleting configuration files...${NC}"
             rm -f $PREFIX/bin/myserver >/dev/null 2>&1
-            echo -e "${GREEN}تم حذف ملفات التكوين${NC}"
+            echo -e "${GREEN}Configuration files deleted successfully ${NC}"
 
             # 4. حذف مجلد htdocs
-            echo -e "${BLUE}[4/6] ${YELLOW}جارٍ حذف مجلد htdocs...${NC}"
-            local backup_dir="/sdcard/htdocs_backup_$(date +%Y%m%d)"
-            if [ ! -d "$backup_dir" ] && [ -d "/sdcard/htdocs" ]; then
-                cp -r /sdcard/htdocs "$backup_dir" >/dev/null 2>&1
-                echo -e "${YELLOW}تم إنشاء نسخة احتياطية في: $backup_dir${NC}"
-            fi
+            echo -e "${BLUE}[4/6] ${YELLOW}Deleting htdocs folder   ...${NC}"
             
             rm -rf /sdcard/htdocs >/dev/null 2>&1
             rm -rf $HOME/storage/shared/htdocs >/dev/null 2>&1
-            echo -e "${GREEN}تم حذف مجلد htdocs${NC}"
+            echo -e "${GREEN}htdocs folder was deleted successfully ${NC}"
 
             # 6. تنظيف الملفات المؤقتة
-            echo -e "${BLUE}[6/6] ${YELLOW}جارٍ تنظيف الملفات المؤقتة...${NC}"
+            echo -e "${BLUE}[6/6] ${YELLOW}Cleaning temporary files   ...${NC}"
             rm -rf $HOME/.composer >/dev/null 2>&1
             rm -rf $HOME/.cache >/dev/null 2>&1
-            echo -e "${GREEN}تم تنظيف الملفات المؤقتة${NC}"
+            echo -e "${GREEN}Temporary files were cleaned successfully.  ${NC}"
 
-            echo -e "\n${GREEN}تم إزالة تثبيت الخادم بنجاح!${NC}"
-            echo -e "${YELLOW}لإعادة التثبيت، قم بتشغيل السكربت الأصلي مرة أخرى.${NC}"
+            echo -e "\n${GREEN}MyServer has been successfully uninstalled.!${NC}"
             ;;
         * )
-            echo -e "${GREEN}تم إلغاء العملية${NC}"
+            echo -e "${GREEN}The operation was canceled.${NC}"
             return 1
             ;;
     esac
