@@ -9,25 +9,6 @@ from pathlib import Path
 import tempfile
 
 
-def delete_myserver():
-    try:
-        # العودة إلى المجلد الرئيسي (Home)
-        home_dir = str(Path.home())
-        os.chdir(home_dir)
-        print(f"تم الانتقال إلى المجلد الرئيسي: {home_dir}")
-
-        # حذف ملف myserver إذا كان موجوداً
-        myserver_path = Path("myserver")
-        if myserver_path.exists():
-            myserver_path.unlink()
-            print("تم حذف ملف myserver بنجاح")
-        else:
-            print("ملف myserver غير موجود")
-            
-    except Exception as e:
-        print(f"حدث خطأ: {str(e)}")
-
-
 def setup_apache_ssl():
     """إنشاء شهادات SSL مع إعدادات متقدمة وتهيئة ملف httpd-ssl.conf"""
     apache_dir = Path(os.environ['PREFIX']) / 'etc/apache2'
@@ -37,7 +18,7 @@ def setup_apache_ssl():
     document_root = "/data/data/com.termux/files/home/storage/shared/htdocs"
 
     if cert_path.exists() and key_path.exists():
-        print("\033[1;33mالشهادات موجودة بالفعل، جارٍ تخطي الإنشاء\033[0m")
+        print("\033[1;33m Certificate already exists Skip creation \033[0m")
         return True
 
     temp_config_path = None  # تهيئة المتغير
@@ -91,13 +72,13 @@ IP.2 = ::1
             "-out", str(cert_path),
             "-config", str(temp_config_path)
         ], check=True)
-        print("\033[1;32mتم إنشاء شهادة SSL مع إعدادات SAN بنجاح\033[0m")
+        print("\033[1;32m SSL certificate created successfully \033[0m")
 
     except subprocess.CalledProcessError as e:
-        print(f"\033[1;31mخطأ في إنشاء الشهادة: {e}\033[0m")
+        print(f"\033[1;31m Error creating certificate {e}\033[0m")
         return False
     except Exception as e:
-        print(f"\033[1;31mخطأ غير متوقع: {e}\033[0m")
+        print(f"\033[1;31m unexpected error {e}\033[0m")
         return False
     finally:
         # تنظيف الملف المؤقت إذا وُجد
@@ -105,7 +86,7 @@ IP.2 = ::1
             try:
                 temp_config_path.unlink()
             except Exception as e:
-                print(f"\033[1;33mتحذير: فشل في حذف الملف المؤقت: {e}\033[0m")
+                print(f"\033[1;33m Warning: Failed to delete temporary files. {e}\033[0m")
 
     # إنشاء ملف تكوين Apache
     ssl_conf_content = f"""\
@@ -134,10 +115,10 @@ Listen 8443
         ssl_conf_path.parent.mkdir(parents=True, exist_ok=True)
         with open(ssl_conf_path, "w") as f:
             f.write(ssl_conf_content)
-        print("\033[1;32mتم إنشاء ملف httpd-ssl.conf بنجاح\033[0m")
+        print("\033[1;32m httpd-ssl.conf file created successfully \033[0m")
         return True
     except Exception as e:
-        print(f"\033[1;31mخطأ في كتابة ملف التكوين: {e}\033[0m")
+        print(f"\033[1;31m Error writing configuration file {e}\033[0m")
         return False
 
 def create_htaccess():
@@ -151,10 +132,10 @@ DirectoryIndex index.php index.html index.htm index2.html default.html default.h
         htaccess_path.parent.mkdir(parents=True, exist_ok=True)
         with open(htaccess_path, 'w') as f:
             f.write(content)
-        print("\033[1;32mتم إنشاء ملف .htaccess بنجاح\033[0m")
+        print("\033[1;32m .htaccess file created successfully \033[0m")
         return True
     except Exception as e:
-        print(f"\033[1;31mخطأ في إنشاء .htaccess: {str(e)}\033[0m")
+        print(f"\033[1;31m Error creating .htaccess file {str(e)}\033[0m")
         return False
 
 def modify_httpd_conf():
@@ -165,14 +146,14 @@ def modify_httpd_conf():
     php_module_path = str(Path(os.environ['PREFIX']) / 'libexec/apache2/libphp.so')
     
     if not httpd_conf.exists():
-        print("\033[1;31mخطأ: ملف httpd.conf غير موجود!\033[0m")
+        print("\033[1;31m httpd.conf does not exist error \033[0m")
         return False
 
     try:
         backup = httpd_conf.with_suffix('.bak')
         if not backup.exists():
             shutil.copy2(httpd_conf, backup)
-            print("\033[1;33mتم إنشاء نسخة احتياطية من الملف\033[0m")
+            print("\033[1;33m A backup copy of the file has been created. \033[0m")
         
         with open(httpd_conf, 'r', encoding='utf-8') as f:
             content = f.read()
@@ -249,12 +230,11 @@ LoadModule php_module {php_module_path}
         with open(httpd_conf, 'w', encoding='utf-8') as f:
             f.write(content)
         
-        print("\033[1;32mتم التعديل بنجاح! يرجى إعادة تشغيل Apache\033[0m")
-        os.system("apachectl restart")  # إعادة التشغيل التلقائي
+        print("\033[1;32m Modified successfully \033[0m")
         return True
     
     except Exception as e:
-        print(f"\033[1;31mخطأ أثناء التعديل: {str(e)}\033[0m")
+        print(f"\033[1;31m Error while editing {str(e)}\033[0m")
         return False
 
 def setup_htdocs():
@@ -270,10 +250,10 @@ def setup_htdocs():
         phpinfo_dir.mkdir(exist_ok=True)
         (phpinfo_dir / "index.php").write_text("<?php phpinfo(); ?>")
         
-        print("\033[1;32mتم إعداد مجلد htdocs بنجاح\033[0m")
+        print("\033[1;32m htdocs folder created successfully \033[0m")
         return True
     except Exception as e:
-        print(f"\033[1;31mخطأ في إعداد htdocs: {str(e)}\033[0m")
+        print(f"\033[1;31m Error setting htdocs folder {str(e)}\033[0m")
         return False
 
 def install_phpmyadmin(htdocs_path):
@@ -285,9 +265,9 @@ def install_phpmyadmin(htdocs_path):
         if not pma_dir.exists():
             os.chdir(htdocs_path)
             os.system("composer create-project -q phpmyadmin/phpmyadmin")
-            print("\033[1;32mتم تثبيت phpMyAdmin بنجاح\033[0m")
+            print("\033[1;32m phpMyAdmin has been installed successfully. \033[0m")
         else:
-            print("\033[1;33mphpMyAdmin موجود بالفعل، جارٍ تخطي التثبيت\033[0m")
+            print("\033[1;33m phpmyadmin already exists skipping setup \033[0m")
 
         # التعامل مع ملف التكوين
         config_sample = pma_dir / "config.sample.inc.php"
@@ -298,15 +278,15 @@ def install_phpmyadmin(htdocs_path):
             if not config_file.exists():
                 try:
                     config_sample.rename(config_file)
-                    print("\033[1;32mتم إعادة تسمية ملف التكوين إلى config.inc.php\033[0m")
+                    print("\033[1;32m The configuration file has been renamed to config.inc.php. \033[0m")
                 except Exception as e:
-                    print(f"\033[1;31mخطأ في إعادة تسمية الملف: {e}\033[0m")
+                    print(f"\033[1;31m Error renaming configuration file {e}\033[0m")
                     return False
             else:
-                print("\033[1;33mملف التكوين موجود مسبقاً\033[0m")
+                print("\033[1;33m The configuration file already exists. \033[0m")
         else:
             if not config_file.exists():
-                print("\033[1;31mملف التكوين النموذجي غير موجود!\033[0m")
+                print("\033[1;31m Configuration file not found \033[0m")
                 return False
 
         # تعديل الإعدادات المطلوبة
@@ -337,20 +317,20 @@ def install_phpmyadmin(htdocs_path):
                     f.truncate()
                     messages = []
                     if allow_no_password_modified:
-                        messages.append("تم تفعيل الدخول بدون كلمة مرور بنجاح")
+                        messages.append("Passwordless login enabled")
                     if host_modified:
-                        messages.append("تم تغيير إعداد المضيف إلى 127.0.0.1 بنجاح")
+                        messages.append("Server settings have been changed.")
                     print("\033[1;32m" + "، ".join(messages) + "\033[0m")
                 else:
-                    print("\033[1;33mلم يتم العثور على إعدادات لتعديلها\033[0m")
+                    print("\033[1;33m Settings not found \033[0m")
             
             return True
         except Exception as e:
-            print(f"\033[1;31mخطأ في تعديل ملف التكوين: {str(e)}\033[0m")
+            print(f"\033[1;31m Error modifying configuration file {str(e)}\033[0m")
             return False
 
     except Exception as e:
-        print(f"\033[1;31mخطأ في تثبيت phpMyAdmin: {str(e)}\033[0m")
+        print(f"\033[1;31m phpMyAdmin installation error {str(e)}\033[0m")
         return False
 
 def make_myserver_executable():
@@ -360,7 +340,7 @@ def make_myserver_executable():
     
     try:
         if not source_path.exists():
-            print("\033[1;33mملف myserver غير موجود، جارٍ تخطي هذه الخطوة\033[0m")
+            print("\033[1;33m The file myserver does not exist. \033[0m")
             return True
         
         destination_path.parent.mkdir(parents=True, exist_ok=True)
@@ -372,14 +352,14 @@ def make_myserver_executable():
         os.chmod(destination_path, 0o755)
         
         if destination_path.exists():
-            print(f"\033[1;32mتم نسخ الملف بنجاح إلى: {destination_path}\033[0m")
+            print("\033[1;32m Myserver file has been created successfully. \033[0m")
             return True
         else:
-            print("\033[1;31mفشل في نسخ الملف!\033[0m")
+            print("\033[1;31m Failed to prepare the file \033[0m")
             return False
             
     except Exception as e:
-        print(f"\033[1;31mحدث خطأ غير متوقع: {str(e)}\033[0m")
+        print(f"\033[1;31m An unexpected error occurred:{str(e)}\033[0m")
         return False
 
 def create_php_ini():
@@ -403,34 +383,34 @@ display_errors = On
         php_ini_path.parent.mkdir(parents=True, exist_ok=True)
         with open(php_ini_path, 'w') as f:
             f.write(php_ini_content)
-        print("\033[1;32mتم إنشاء ملف php.ini بنجاح\033[0m")
+        print("\033[1;32m The php.ini file was created successfully. \033[0m")
         return True
     except Exception as e:
-        print(f"\033[1;31mخطأ في إنشاء php.ini: {str(e)}\033[0m")
+        print(f"\033[1;31m Error creating php.ini file : {str(e)}\033[0m")
         return False
 
 def main():
     try:
-        print("\033[1;33mجارٍ تثبيت الخادم...\033[0m")
+        print("\033[1;33mInstalling Myserver..\033[0m")
         
         steps = [
-            ("تحديث الحزم", "pkg update -y && pkg upgrade -y"),
-            ("إعداد التخزين", None),
-            ("تثبيت الحزم الأساسية", "pkg install -y php-apache openssl-tool mariadb composer wget"),
-            ("تهيئة إعدادات SSL", setup_apache_ssl),
-            ("تعديل إعدادات Apache", modify_httpd_conf),
-            ("إعداد دليل htdocs", setup_htdocs),
-            ("إنشاء ملف .htaccess", create_htaccess),
-            ("تثبيت phpMyAdmin", lambda: install_phpmyadmin(Path("/data/data/com.termux/files/home/storage/shared/htdocs"))),
-            ("إعداد ملف myserver", make_myserver_executable),
-            ("إنشاء ملف php.ini", create_php_ini),
-            ("إعداد الصلاحيات", None)
+            ("Update packages", "pkg update -y && pkg upgrade -y"),
+            ("Storage settings", None),
+            ("Installing basic packages", "pkg install -y php-apache openssl-tool mariadb composer wget"),
+            ("Configure SSL settings", setup_apache_ssl),
+            ("Apache settings", modify_httpd_conf),
+            ("Prepare htdocs folder", setup_htdocs),
+            ("Create an .htaccess file", create_htaccess),
+            ("Install phpMyAdmin", lambda: install_phpmyadmin(Path("/data/data/com.termux/files/home/storage/shared/htdocs"))),
+            ("MyServer configuration settings", make_myserver_executable),
+            ("Create php.ini file", create_php_ini),
+            ("Validity settings", None)
         ]
 
         for i, (desc, action) in enumerate(steps, 1):
-            print(f"\033[1;34m[{i}/11] جارٍ {desc}...\033[0m")
+            print(f"\033[1;34m[{i}/11] Preparing {desc}...\033[0m")
             
-            if desc == "إعداد التخزين":
+            if desc == "Storage settings":
                 if not Path("~/storage").expanduser().exists():
                     subprocess.run(
                         "termux-setup-storage",
@@ -440,7 +420,7 @@ def main():
                     )
                     time.sleep(5)
             
-            elif desc == "إعداد الصلاحيات":
+            elif desc == "Validity settings":
                 htdocs_path = Path("/data/data/com.termux/files/home/storage/shared/htdocs")
                 subprocess.run(
                     f"chmod 755 {htdocs_path} -R",
@@ -451,7 +431,7 @@ def main():
             
             elif callable(action):
                 if not action():
-                    raise Exception(f"فشل في {desc}")
+                    raise Exception(f"Failed to  {desc}")
             
             else:
                 if action:
@@ -461,16 +441,16 @@ def main():
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL
                     )
-        delete_myserver
-        print("\n\033[1;32mتم تثبيت الخادم بنجاح!\033[0m")
+        
+        print("\n\033[1;32mmyserver has been installed successfully\033[0m")
         htdocs_path = Path("/data/data/com.termux/files/home/storage/shared/htdocs")
-        print(f"\033[1;36m• دليل الوثائق الرئيسي: {htdocs_path}")
-        print("• عنوان الخادم الآمن: https://localhost:8443")
-        print("• لبدء الخادم: sv-enable apache")
-        print("• لإيقاف الخادم: sv-disable apache\033[0m")
+        print(f"\033[1;36m Main file path : {htdocs_path}")
+        print("Server address: http://localhost:8080")
+        print("Safe server address: https://localhost:8443")
+        print("Type myserver to start Server")
         
     except Exception as e:
-        print(f"\033[1;31mحدث خطأ: {str(e)}\033[0m")
+        print(f"\033[1;31mAn unexpected error: {str(e)}\033[0m")
         exit(1)
 
 if __name__ == "__main__":

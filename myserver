@@ -1,235 +1,616 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
 # ألوان للنص
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+RED = '\033[0;31m'
+GREEN = '\033[0;32m'
+YELLOW = '\033[1;33m'
+BLUE = '\033[0;34m'
+CYAN = '\033[0;36m'
+NC = '\033[0m' # No Color
 
 # مسارات أساسية لـ Termux
-APACHE_DIR="$PREFIX/etc/apache2"
-SSL_CONF="$APACHE_DIR/extra/httpd-ssl.conf"
-SSL_CERT="$APACHE_DIR/server.crt"
-SSL_KEY="$APACHE_DIR/server.key"
-DOC_ROOT="/data/data/com.termux/files/home/storage/shared/htdocs"
+APACHE_DIR = "$PREFIX/etc/apache2"
+SSL_CONF = "$APACHE_DIR/extra/httpd-ssl.conf"
+SSL_CERT = "$APACHE_DIR/server.crt"
+SSL_KEY = "$APACHE_DIR/server.key"
+DOC_ROOT = "/data/data/com.termux/files/home/storage/shared/htdocs"
+#مسارات ومتغيرات خاصة بالنسخه الاحتياطية
+BACKUP_DIR = "$HOME/myserver_backups"
+HTDOCS_DIR = "/data/data/com.termux/files/home/storage/shared/htdocs"
+TIMESTAMP = $(date +"%Y%m%d_%H%M%S")
+BACKUP_PATH = "$BACKUP_DIR/$TIMESTAMP"
+
+# متغيرات تحديث النظام
+REPO_OWNER = "elias0esmail"
+REPO_NAME = "myserver"
+CURRENT_VERSION = "1.0.0"
+REPO_URL = "https://github.com/$ {
+  REPO_OWNER
+}/$ {
+  REPO_NAME
+}.git"
 
 # التحقق من حالة الخدمات
 function check_status() {
-    # إعادة تعيين الحالات المبدئية
-    apache_status="${RED}Inactive${NC}"
-    php_status="${RED}Inactive${NC}"
-    mariadb_status="${RED}Inactive${NC}"
-    
-    # التحقق من حالة Apache
-    if ps aux | grep httpd | grep -v grep  >/dev/null; then
-        apache_status="${GREEN}Active${NC}"
-        # التحقق من وجود وحدة PHP إذا كان Apache يعمل
-        if grep -q "php_module" $APACHE_DIR/httpd.conf; then
-            php_status="${GREEN}Active${NC}"
-        fi
-    fi
-    
-    # التحقق من حالة MariaDB بشكل أكثر دقة
-    if pgrep  "mariadbd" >/dev/null && mysqladmin ping >/dev/null 2>&1; then
-        mariadb_status="${GREEN}Active${NC}"
-    fi
-    
-    show_status
+  # إعادة تعيين الحالات المبدئية
+  apache_status = "$ {
+    RED
+  }Inactive$ {
+    NC
+  }"
+  php_status = "$ {
+    RED
+  }Inactive$ {
+    NC
+  }"
+  mariadb_status = "$ {
+    RED
+  }Inactive$ {
+    NC
+  }"
+
+  # التحقق من حالة Apache
+  if ps aux | grep httpd | grep -v grep >/dev/null; then
+  apache_status = "$ {
+    GREEN
+  }Active$ {
+    NC
+  }"
+  # التحقق من وجود وحدة PHP إذا كان Apache يعمل
+  if grep -q "php_module" $APACHE_DIR/httpd.conf; then
+  php_status = "$ {
+    GREEN
+  }Active$ {
+    NC
+  }"
+  fi
+  fi
+
+  # التحقق من حالة MariaDB بشكل أكثر دقة
+  if pgrep "mariadbd" >/dev/null && mysqladmin ping >/dev/null 2 > &1; then
+  mariadb_status = "$ {
+    GREEN
+  }Active$ {
+    NC
+  }"
+  fi
+
+  show_status
 }
 
 # عرض حالة الخدمات
 function show_status() {
-    echo -e "${BLUE}=== Server Status  ===${NC}"
-    echo -e "Apache:     $apache_status"
-    echo -e "PHP:        $php_status"
-    echo -e "MariaDB:    $mariadb_status"
-    echo -e "========================${NC}"
+  echo -e "$ {
+    BLUE
+  }=== Server Status  ===$ {
+    NC
+  }"
+  echo -e "Apache:     $apache_status"
+  echo -e "PHP:        $php_status"
+  echo -e "MariaDB:    $mariadb_status"
+  echo -e "========================$ {
+    NC
+  }"
 }
 
 # التحقق من صلاحية الشهادة
 function check_cert_expiry() {
-    if [ ! -f "$SSL_CERT" ]; then
-        return 1
-    fi
-    
-    expiry_date=$(openssl x509 -enddate -noout -in "$SSL_CERT" | cut -d= -f2)
-    expiry_epoch=$(date -d "$expiry_date" +%s 2>/dev/null || date -j -f "%b %d %T %Y %Z" "$expiry_date" +%s)
-    current_epoch=$(date +%s)
-    
-    if [ $((expiry_epoch - current_epoch)) -lt 2592000 ]; then
-        return 1
-    fi
-    
-    return 0
+  if [! -f "$SSL_CERT"]; then
+  return 1
+  fi
+
+  expiry_date = $(openssl x509 -enddate -noout -in "$SSL_CERT" | cut -d = -f2)
+  expiry_epoch = $(date -d "$expiry_date" +%s 2>/dev/null || date -j -f "%b %d %T %Y %Z" "$expiry_date" +%s)
+  current_epoch = $(date +%s)
+
+  if [$((expiry_epoch - current_epoch)) -lt 2592000]; then
+  return 1
+  fi
+
+  return 0
 }
 
 # إنشاء/تجديد الشهادة
 function renew_ssl_cert() {
-    echo -e "${YELLOW}Creating a new SSL certificate...${NC}"
-    
-    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-        -keyout "$SSL_KEY" -out "$SSL_CERT" \
-        -subj "/C=XX/ST=XX/L=XX/O=XX/CN=localhost" 2>/dev/null
-    
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}Certificate renewed successfully ${NC}"
-        return 0
-    else
-        echo -e "${RED}Failed to renew certificate ${NC}"
-        return 1
-    fi
+  echo -e "$ {
+    YELLOW
+  }Creating a new SSL certificate...$ {
+    NC
+  }"
+
+  openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout "$SSL_KEY" -out "$SSL_CERT" \
+  -subj "/C=XX/ST=XX/L=XX/O=XX/CN=localhost" 2>/dev/null
+
+  if [$? -eq 0]; then
+  echo -e "$ {
+    GREEN
+  }Certificate renewed successfully $ {
+    NC
+  }"
+  return 0
+  else
+    echo -e "$ {
+    RED
+  }Failed to renew certificate $ {
+    NC
+  }"
+  return 1
+  fi
 }
 
 # تشغيل الخدمات مع SSL
 function start_ssl() {
-    # التحقق من الشهادة
-    if ! check_cert_expiry; then
-        renew_ssl_cert || return 1
-    fi
-    
-    # إعادة تشغيل Apache
-    echo -e "${YELLOW}Server is restarting...${NC}"
-    apachectl stop >/dev/null 2>&1
-    apachectl start
-    
-    # تشغيل MariaDB مع زيادة وقت الانتظار
-    mysqld_safe  >/dev/null 2>&1 &
-    sleep 2
-    
-    termux-open-url "https://localhost:8443/"
-    echo -e "${GREEN}Successfully started on port 8443 ${NC}"
+  # التحقق من الشهادة
+  if ! check_cert_expiry; then
+  renew_ssl_cert || return 1
+  fi
+
+  # إعادة تشغيل Apache
+  echo -e "$ {
+    YELLOW
+  }Server is restarting...$ {
+    NC
+  }"
+  apachectl stop >/dev/null 2 > &1
+  sleep 1
+  apachectl start
+
+  # تشغيل MariaDB مع زيادة وقت الانتظار
+  mysqld_safe >/dev/null 2 > &1 &
+  sleep 2
+
+  termux-open-url "https://localhost:8443/"
+  echo -e "$ {
+    GREEN
+  }Successfully started on port 8443 $ {
+    NC
+  }"
 }
 
 # تشغيل الخدمات العادية
 function start_normal() {
-    apachectl stop >/dev/null 2>&1
-    apachectl start
-    mysqld_safe  >/dev/null 2>&1 &
-    sleep 2
-    termux-open-url "http://localhost:8080/"
-    echo -e "${GREEN}Successfully started on port 8080 ${NC}"
+  apachectl stop >/dev/null 2 > &1
+  apachectl start
+  mysqld_safe >/dev/null 2 > &1 &
+  sleep 2
+  termux-open-url "http://localhost:8080/"
+  echo -e "$ {
+    GREEN
+  }Successfully started on port 8080 $ {
+    NC
+  }"
 }
 
 # إيقاف الخدمات
 function stop_services() {
-    echo -e "${YELLOW}The server is being suspended. ${NC}"
-    apachectl stop
-    pkill -x mysqld
-    pkill -15 "mariadbd"
-    sleep 2
-    echo -e "${GREEN}The server has been stopped.${NC}"
+  echo -e "$ {
+    YELLOW
+  }The server is being suspended. $ {
+    NC
+  }"
+  apachectl stop
+  pkill -x mysqld
+  pkill -15 "mariadbd"
+  sleep 2
+  echo -e "$ {
+    GREEN
+  }The server has been stopped.$ {
+    NC
+  }"
 }
 
 # دالة واحدة لتنظيف وإزالة تثبيت الخادم
 uninstall_server() {
-    # ألوان للنص
-    local RED='\033[1;31m'
-    local GREEN='\033[1;32m'
-    local YELLOW='\033[1;33m'
-    local BLUE='\033[1;34m'
-    local NC='\033[0m' # No Color
 
-    echo -e "${RED}=============================================="
-    echo -e "          Uninstall Myserver            "
-    echo -e "==============================================${NC}"
-    echo -e "${YELLOW}Myserver will now be uninstalled.   ${NC}"
-    echo -e "${YELLOW}All files and settings will be deleted. ${NC}"
-    echo -e "${RED}This process is irreversible.!${NC}"
-    echo
+  echo -e "$ {
+    RED
+  }=============================================="
+  echo -e "          Uninstall Myserver            "
+  echo -e "==============================================$ {
+    NC
+  }"
+  echo -e "$ {
+    YELLOW
+  }Myserver will now be uninstalled.   $ {
+    NC
+  }"
+  echo -e "$ {
+    YELLOW
+  }All files and settings will be deleted. $ {
+    NC
+  }"
+  echo -e "$ {
+    RED
+  }This process is irreversible.!$ {
+    NC
+  }"
+  echo
 
-    read -p "Are you sure you want to continue?[y/N] " choice
-    case "$choice" in 
-        y|Y )
-            # 1. إيقاف الخدمات
-            echo -e "${BLUE}[1/6] ${YELLOW}Stop server...${NC}"
-            stop_services
+  read -p "Are you sure you want to continue?[y/N] " choice
+  case "$choice" in
+    y|Y)
+  # 1. إيقاف الخدمات
+  echo -e "$ {
+    BLUE
+}[1/6] $ {
+  YELLOW
+}Stop server...$ {
+  NC
+}"
+stop_services
 
-            # 2. إزالة الحزم
-            echo -e "${BLUE}[2/6] ${YELLOW}Removing installed packages...${NC}"
-            pkg remove -y php-apache mariadb composer openssl-tool wget >/dev/null 2>&1
-            pkg autoremove -y >/dev/null 2>&1
-            echo -e "${GREEN} Packages removed successfully  ${NC}"
+# 2. إزالة الحزم
+echo -e "$ {
+  BLUE
+}[2/6] $ {
+  YELLOW
+}Removing installed packages...$ {
+  NC
+}"
+pkg remove -y php-apache mariadb composer openssl-tool wget >/dev/null 2 > &1
+pkg autoremove -y >/dev/null 2 > &1
+echo -e "$ {
+  GREEN
+} Packages removed successfully  $ {
+  NC
+}"
 
-            # 3. حذف ملفات التكوين
-            echo -e "${BLUE}[3/6] ${YELLOW}Deleting configuration files...${NC}"
-            rm -f $PREFIX/bin/myserver >/dev/null 2>&1
-            echo -e "${GREEN}Configuration files deleted successfully ${NC}"
+# 3. حذف ملفات التكوين
+echo -e "$ {
+  BLUE
+}[3/6] $ {
+  YELLOW
+}Deleting configuration files...$ {
+  NC
+}"
+rm -f $PREFIX/bin/myserver >/dev/null 2 > &1
+echo -e "$ {
+  GREEN
+}Configuration files deleted successfully $ {
+  NC
+}"
 
-            # 4. حذف مجلد htdocs
-            echo -e "${BLUE}[4/6] ${YELLOW}Deleting htdocs folder   ...${NC}"
-            
-            rm -rf /sdcard/htdocs >/dev/null 2>&1
-            rm -rf $HOME/storage/shared/htdocs >/dev/null 2>&1
-            echo -e "${GREEN}htdocs folder was deleted successfully ${NC}"
+# 4. حذف مجلد htdocs
+echo -e "$ {
+  BLUE
+}[4/6] $ {
+  YELLOW
+}Deleting htdocs folder   ...$ {
+  NC
+}"
 
-            # 6. تنظيف الملفات المؤقتة
-            echo -e "${BLUE}[6/6] ${YELLOW}Cleaning temporary files   ...${NC}"
-            rm -rf $HOME/.composer >/dev/null 2>&1
-            rm -rf $HOME/.cache >/dev/null 2>&1
-            echo -e "${GREEN}Temporary files were cleaned successfully.  ${NC}"
+rm -rf /sdcard/htdocs >/dev/null 2 > &1
+rm -rf $HOME/storage/shared/htdocs >/dev/null 2 > &1
+echo -e "$ {
+  GREEN
+}htdocs folder was deleted successfully $ {
+  NC
+}"
 
-            echo -e "\n${GREEN}MyServer has been successfully uninstalled.!${NC}"
-            ;;
-        * )
-            echo -e "${GREEN}The operation was canceled.${NC}"
-            return 1
-            ;;
-    esac
+# 6. تنظيف الملفات المؤقتة
+echo -e "$ {
+  BLUE
+}[6/6] $ {
+  YELLOW
+}Cleaning temporary files   ...$ {
+  NC
+}"
+rm -rf $HOME/.composer >/dev/null 2 > &1
+rm -rf $HOME/.cache >/dev/null 2 > &1
+echo -e "$ {
+  GREEN
+}Temporary files were cleaned successfully.  $ {
+  NC
+}"
+
+echo -e "\n$ {
+  GREEN
+}MyServer has been successfully uninstalled.!$ {
+  NC
+}"
+;;
+*)
+echo -e "$ {
+GREEN
+}The operation was canceled.$ {
+NC
+}"
+return 1
+;;
+esac
 }
 
+#عمل نسخه احتياطية للبيانات
+create_mysql_backup() {
+# إعدادات المسارات المخصصة لـ Termux
+
+
+# طلب بيانات الاعتماد بشكل آمن
+echo -e "\033[1;36m»»» إعدادات خادم MySQL «««\033[0m"
+read -p "أدخل اسم المستخدم: " MYSQL_USER
+read -s -p "أدخل كلمة المرور: " MYSQL_PASS
+echo
+
+# إنشاء مجلد النسخة الاحتياطية
+mkdir -p "$BACKUP_PATH" || {
+echo -e "\033[1;31mخطأ في إنشاء المجلد: $BACKUP_PATH\033[0m"
+return 1
+}
+
+# نسخ قاعدة البيانات
+echo -e "\n\033[1;34mجاري إنشاء نسخة من قواعد البيانات...\033[0m"
+if ! mysqldump --user = "$MYSQL_USER" --password = "$MYSQL_PASS" --all-databases > "$BACKUP_PATH/full_backup.sql"; then
+echo -e "\033[1;31mفشل نسخ قاعدة البيانات! تحقق من البيانات والمستخدم\033[0m"
+rm -rf "$BACKUP_PATH"
+return 1
+fi
+
+# نسخ ملفات الموقع مع استثناء phpmyadmin
+echo -e "\n\033[1;34mجاري نسخ ملفات الموقع...\033[0m"
+if ! tar czf "$BACKUP_PATH/htdocs_backup.tar.gz" \
+--exclude = "phpmyadmin" \
+-C "$HTDOCS_DIR/.." \
+"$(basename "$HTDOCS_DIR")"; then
+echo -e "\033[1;31mفشل نسخ ملفات الموقع!\033[0m"
+rm -rf "$BACKUP_PATH"
+return 1
+fi
+
+# عرض النتائج
+echo -e "\n\033[1;32mتم إنشاء النسخة الاحتياطية بنجاح!\033[0m"
+echo -e "\033[1;36mالمسار: $BACKUP_PATH"
+echo -e "حجم قاعدة البيانات: $(du -h "$BACKUP_PATH/full_backup.sql" | cut -f1)"
+echo -e "حجم الملفات: $(du -h "$BACKUP_PATH/htdocs_backup.tar.gz" | cut -f1)\033[0m"
+}
+
+#التحقق من وجود تحديث
+#!/data/data/com.termux/files/usr/bin/bash
+
+check_for_updates() {
+# التحقق من تثبيت Git
+if ! command -v git &> /dev/null; then
+echo -e "$ {
+RED
+}خطأ: يجب تثبيت git أولاً!$ {
+NC
+}"
+echo -e "$ {
+CYAN
+}استخدم: pkg install git$ {
+NC
+}"
+return 1
+fi
+
+# جلب أحدث إصدار من Tags
+echo -e "$ {
+CYAN
+}جاري التحقق من التحديثات...$ {
+NC
+}"
+local latest_version = $(git ls-remote --tags $ {
+REPO_URL
+} | \
+awk -F/ '{print $3}' | \
+sort -V | \
+tail -n1 | \
+sed 's/\^{}//')
+
+# معالجة الأخطاء
+if [[-z "$latest_version"]]; then
+echo -e "$ {
+RED
+}فشل في الحصول على الإصدارات!$ {
+NC
+}"
+return 1
+fi
+
+# مقارنة الإصدارات
+if [["$latest_version" == "$CURRENT_VERSION"]]; then
+echo -e "$ {
+GREEN
+}أنت تستخدم أحدث إصدار ($ {
+CYAN
+}$ {
+CURRENT_VERSION
+}$ {
+GREEN
+})$ {
+NC
+}"
+return 0
+else
+echo -e "$ {
+YELLOW
+}يوجد تحديث جديد متوفر!$ {
+NC
+}"
+echo -e "$ {
+CYAN
+}الإصدار الحالي: $ {
+CURRENT_VERSION
+}"
+echo -e "الإصدار الجديد: $ {
+latest_version
+}"
+echo -e "رابط التحديث: $ {
+YELLOW
+}$ {
+REPO_URL
+}/releases/tag/$ {
+latest_version
+}$ {
+NC
+}"
+return 2
+fi
+}
+
+#تنزيل التحديث الاخير
+download_update() {
+echo -e "\033[1;36mجاري تنزيل التحديث...\033[0m"
+
+git clone --depth 1 -b "$ {
+latest_version
+}" "$ {
+REPO_URL
+}" "$ {
+TMP_DIR
+}" || {
+echo -e "\033[1;31mفشل في تنزيل التحديث!\033[0m"
+return 1
+}
+}
+
+#تثبيت التحديث
+install_update() {
+echo -e "\033[1;34mجاري تثبيت الإصدار الجديد...\033[0m"
+
+# نسخ الملفات الجديدة
+cp -r "$ {
+TMP_DIR
+}"/* "$ {
+INSTALL_DIR
+}"
+
+# تشغيل إعدادات التثبيت
+cd "$ {
+INSTALL_DIR
+}" || return 1
+python3 setup.py || {
+echo -e "\033[1;31mفشل في عملية التثبيت!\033[0m"
+return 1
+}
+}
+
+#تنظيف الملفات المؤقتة
+cleanup() {
+echo -e "\033[1;33mجاري التنظيف...\033[0m"
+rm -rf "$ {
+TMP_DIR
+}"
+}
 
 # القائمة الرئيسية
 function main_menu() {
-    while true; do
-        clear
-        echo -e "${CYAN}====  MyServer Management  ====${NC}"
-        check_status
-        
-        echo -e "${YELLOW}1. Start with (HTTP)"
-        echo -e "2. Start with SSL (HTTPS)"
-        echo -e "3. Stop Server "
-        echo -e "4. Update Server status "
-        echo -e "5. Uninstall"
-        echo -e "0. Exit${NC}"
-        echo
-        
-        read -p " Enter your choice  : " choice
-        
-        case $choice in
-            1)
-                start_normal
-                sleep 1
-                ;;
-            2)
-                start_ssl
-                sleep 1
-                ;;
-            3)
-                stop_services
-                sleep 1
-                ;;
-            4)
-                check_status
-                sleep 1
-                ;;
-            5)
-                uninstall_server
-                sleep 1
-                ;;
-                
-            0)
-                stop_services
-                echo -e "${BLUE} Good-bye!${NC}"
-                exit 0
-                ;;
-            *)
-                echo -e "${RED} Incorrect choice !${NC}"
-                sleep 1
-                ;;
-        esac
-    done
+while true; do
+clear
+echo -e "$ {
+CYAN
+}====  MyServer Management  ====$ {
+NC
+}"
+check_status
+
+echo -e "$ {
+YELLOW
+}1. Start with (HTTP)"
+echo -e "2. Start with SSL (HTTPS)"
+echo -e "3. Stop Server "
+echo -e "4. Update Server status "
+echo -e "5. Update myserver"
+echo -e "6. Uninstall"
+echo -e "0. Exit$ {
+NC
+}"
+echo
+
+read -p " Enter your choice  : " choice
+
+case $choice in
+1)
+start_normal
+sleep 1
+;;
+2)
+start_ssl
+sleep 1
+;;
+3)
+stop_services
+sleep 1
+;;
+4)
+check_status
+sleep 1
+;;
+5)
+check_for_updates
+local update_status = $?
+
+case $update_status in
+0)
+return 0
+;;
+2)
+read -p "هل تريد التحديث الآن؟ [y/N] " response
+if [["$ {
+response
+}" =~ ^([yY][eE][sS]|[yY])$]]; then
+# عمل نسخة احتياطية
+if ! create_mysql_backup; then
+echo -e "\033[1;31mالتحديث ملغي بسبب فشل النسخة الاحتياطية!\033[0m"
+return 1
+fi
+
+# إزالة الإصدار القديم
+if ! uninstall_old_version; then
+echo -e "\033[1;31mالتحديث ملغي بسبب فشل الإزالة!\033[0m"
+return 1
+fi
+
+# تنزيل وتثبيت التحديث
+if download_update && install_update; then
+echo -e "\033[1;32mتم التحديث بنجاح إلى الإصدار $ {
+latest_version
+}\033[0m"
+else
+echo -e "\033[1;31mفشل التحديث! جاري الاستعادة من النسخة الاحتياطية...\033[0m"
+restore_backup
+fi
+
+cleanup
+fi
+;;
+*)
+return 1
+;;
+esac
+}
+
+;;
+6)
+uninstall_server
+sleep 1
+echo -e "$ {
+BLUE
+} Good-bye!$ {
+NC
+}"
+exit 0
+;;
+
+0)
+stop_services
+echo -e "$ {
+BLUE
+} Good-bye!$ {
+NC
+}"
+exit 0
+;;
+*)
+echo -e "$ {
+RED
+} Incorrect choice !$ {
+NC
+}"
+sleep 1
+;;
+esac
+done
 }
 
 # بدء البرنامج
